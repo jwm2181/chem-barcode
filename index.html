@@ -24,8 +24,7 @@
   .label { color: #5f6368; font-size: 0.85em; display: inline-block; min-width: 90px; }
   .error   { color: #b3261e; padding: 12px; background: #fce8e6; border-radius: 8px; margin: 14px 0; }
   .success { color: #137333; padding: 12px; background: #e6f4ea; border-radius: 8px; margin: 14px 0; }
-  .config-warning { background: #fef7e0; color: #5f4400; padding: 12px; border-radius: 8px; margin: 14px 0; }
-  .status { font-size: 0.8em; color: #5f6368; margin-top: 8px; }
+  .status  { font-size: 0.8em; color: #5f6368; margin-top: 8px; }
 </style>
 </head>
 <body>
@@ -42,9 +41,9 @@
 
 <script>
 // =========================================================
-// CONFIG — edit these two values before uploading.
+// CONFIG — set before uploading.
 // =========================================================
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwZzQ3wHGXfKiPGX-ZpmoP46R8o5BZtF5z4wdZfwwmcwWighwi-fMb6e0v4frBRH4L7yA/exec';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx3QgT-8Ba2m6NLAP7VDSzy6VzCd-Ph7j8_AST74y3Pe1lXLq_MaV7ezutlswUDTF9i5A/exec';
 const TOKEN           = 'abcdefghijklmnopqrstuvwxysabcdefghijklmnopqrstuvwxyz';
 // =========================================================
 
@@ -54,8 +53,7 @@ const heardEl  = document.getElementById('heard');
 const resultEl = document.getElementById('result');
 const statusEl = document.getElementById('status');
 
-// Warm up the Apps Script on page load so the user's first real
-// search doesn't pay the cold-start cost.
+// Warm up the Apps Script on page load.
 (async function warmup() {
   const start = performance.now();
   try {
@@ -67,7 +65,6 @@ const statusEl = document.getElementById('status');
   }
 })();
 
-// --- Web Speech API ---
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 let recognition = null;
 
@@ -164,15 +161,11 @@ async function confirmDelete() {
   const m = currentMatch;
   resultEl.innerHTML = '<p>Deleting…</p>';
   try {
-    const result = await callAPI({
-      action: 'delete',
-      sheetName: m.sheetName,
-      rowNumber: m.rowNumber,
-      expectedBarcode: m.barcode
-    });
+    // Delete by barcode — the server will re-find the (possibly shifted) row.
+    const result = await callAPI({ action: 'delete', barcode: m.barcode });
     if (result.success) {
-      resultEl.innerHTML = '<div class="success"><b>Deleted.</b> Row ' + m.rowNumber +
-        ' on "' + esc(m.sheetName) + '" removed.</div>';
+      resultEl.innerHTML = '<div class="success"><b>Deleted.</b> ' +
+        esc(result.barcode) + ' removed from "' + esc(result.sheetName) + '".</div>';
     } else {
       showError(result.error || 'Delete failed');
     }
