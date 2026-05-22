@@ -25,6 +25,7 @@
   .error   { color: #b3261e; padding: 12px; background: #fce8e6; border-radius: 8px; margin: 14px 0; }
   .success { color: #137333; padding: 12px; background: #e6f4ea; border-radius: 8px; margin: 14px 0; }
   .config-warning { background: #fef7e0; color: #5f4400; padding: 12px; border-radius: 8px; margin: 14px 0; }
+  .status { font-size: 0.8em; color: #5f6368; margin-top: 8px; }
 </style>
 </head>
 <body>
@@ -34,6 +35,7 @@
 
 <button id="micBtn"    class="primary">🎤 Tap and speak</button>
 <button id="manualBtn" class="secondary">Type instead</button>
+<div id="status" class="status">Warming up…</div>
 
 <div id="heard"  class="heard" style="display:none;"></div>
 <div id="result"></div>
@@ -50,13 +52,20 @@ let currentMatch = null;
 const micBtn   = document.getElementById('micBtn');
 const heardEl  = document.getElementById('heard');
 const resultEl = document.getElementById('result');
+const statusEl = document.getElementById('status');
 
-// Warn early if config wasn't filled in.
-if (APPS_SCRIPT_URL.indexOf('PASTE_') === 0 || TOKEN.indexOf('PASTE_') === 0) {
-  resultEl.innerHTML = '<div class="config-warning"><b>Setup needed:</b> ' +
-    'open this file and set <code>APPS_SCRIPT_URL</code> and <code>TOKEN</code> ' +
-    'at the top of the script.</div>';
-}
+// Warm up the Apps Script on page load so the user's first real
+// search doesn't pay the cold-start cost.
+(async function warmup() {
+  const start = performance.now();
+  try {
+    await fetch(APPS_SCRIPT_URL, { method: 'GET' });
+    const ms = Math.round(performance.now() - start);
+    statusEl.textContent = 'Ready (warmup: ' + ms + ' ms).';
+  } catch {
+    statusEl.textContent = 'Ready.';
+  }
+})();
 
 // --- Web Speech API ---
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -104,8 +113,6 @@ function clearUI() {
 async function callAPI(payload) {
   const res = await fetch(APPS_SCRIPT_URL, {
     method: 'POST',
-    // Plain string body so the browser sends Content-Type: text/plain
-    // and avoids a CORS preflight that Apps Script can't satisfy.
     body: JSON.stringify(Object.assign({ token: TOKEN }, payload))
   });
   if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -116,20 +123,23 @@ async function handleHeard(text) {
   heardEl.textContent = 'Heard: "' + text + '"';
   heardEl.style.display = 'block';
   resultEl.innerHTML = '<p>Searching…</p>';
+  const start = performance.now();
   try {
     const result = await callAPI({ action: 'find', barcode: text });
-    if (result.error)   { showError(result.error); return; }
+    const ms = Math.round(performance.now() - start);
+    if (result.error)    { showError(result.error); return; }
     if (result.notFound) {
-      resultEl.innerHTML = '<div class="error"><b>Not found.</b> No row matches that barcode.</div>';
+      resultEl.innerHTML = '<div class="error"><b>Not found.</b> No row matches that barcode. ' +
+        '<span style="color:#5f6368;">(' + ms + ' ms)</span></div>';
       return;
     }
-    showMatch(result);
+    showMatch(result, ms);
   } catch (err) {
     showError(err.message);
   }
 }
 
-function showMatch(match) {
+function showMatch(match, ms) {
   currentMatch = match;
   resultEl.innerHTML = `
     <div class="card">
@@ -140,6 +150,7 @@ function showMatch(match) {
       <div class="row"><span class="label">Size:</span> ${esc(match.size)} ${esc(match.unit)}</div>
       <div class="row"><span class="label">Location:</span> ${esc(match.location)}</div>
       <div class="row"><span class="label">Sheet / Row:</span> ${esc(match.sheetName)} / ${match.rowNumber}</div>
+      <div class="row" style="color:#5f6368; font-size:0.85em;">Found in ${ms} ms</div>
       <div style="margin-top:14px;">
         <button class="danger"    onclick="confirmDelete()">Delete this row</button>
         <button class="secondary" onclick="clearUI()">Cancel</button>
