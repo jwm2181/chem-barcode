@@ -5,108 +5,138 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Chemical Barcode Remover</title>
 <style>
+  * { box-sizing: border-box; }
   body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-         padding: 20px; max-width: 640px; margin: 0 auto; color: #202124; }
-  h1 { font-size: 1.4em; margin-bottom: 4px; }
-  .sub { color: #5f6368; font-size: 0.9em; margin-bottom: 18px; }
-  button { font-size: 1.05em; padding: 12px 18px; border-radius: 8px;
-           border: none; cursor: pointer; margin: 4px 4px 4px 0; font-weight: 500; }
-  .primary   { background: #1a73e8; color: white; }
+         padding: 16px; max-width: 720px; margin: 0 auto; color: #202124;
+         background: #fafafa; }
+  h1 { font-size: 1.3em; margin: 0 0 4px 0; }
+  .sub { color: #5f6368; font-size: 0.85em; margin-bottom: 14px; }
+
+  /* Input bar */
+  .input-bar { display: flex; gap: 8px; align-items: center;
+               position: sticky; top: 0; background: #fafafa; padding: 8px 0; z-index: 10; }
+  #barcodeInput { flex: 1; font-size: 1.3em; padding: 14px 16px; border-radius: 8px;
+                  border: 2px solid #1a73e8; outline: none; font-family: monospace; }
+  #barcodeInput:focus { border-color: #1557b0; box-shadow: 0 0 0 3px rgba(26,115,232,0.2); }
+  #searchBtn { font-size: 1.05em; padding: 14px 22px; border-radius: 8px;
+               border: none; background: #1a73e8; color: white; cursor: pointer; font-weight: 500; }
+
+  .stats { display: flex; gap: 16px; margin: 10px 0; font-size: 0.9em; color: #5f6368; }
+  .stats b { color: #202124; }
+
+  /* Result card */
+  .card { background: white; border: 1px solid #dadce0; border-radius: 10px;
+          padding: 18px; margin: 14px 0; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+  .card .barcode-big { font-size: 1.6em; font-weight: 600; margin-bottom: 4px; font-family: monospace; }
+  .row { margin: 5px 0; }
+  .label { color: #5f6368; font-size: 0.85em; display: inline-block; min-width: 90px; }
+  .actions { margin-top: 16px; }
+  button { font-size: 1em; padding: 10px 18px; border-radius: 8px; border: none;
+           cursor: pointer; margin-right: 6px; font-weight: 500; }
   .danger    { background: #d93025; color: white; }
   .secondary { background: #e8eaed; color: #202124; }
-  .listening { background: #d93025; color: white; animation: pulse 1s infinite; }
-  @keyframes pulse { 50% { opacity: 0.55; } }
-  button:disabled { opacity: 0.5; cursor: not-allowed; }
-  .heard { background: #f1f3f4; padding: 12px; border-radius: 8px;
-           margin: 14px 0; font-family: monospace; }
-  .card  { border: 1px solid #dadce0; border-radius: 8px; padding: 16px; margin: 14px 0; }
-  .row   { margin: 6px 0; }
-  .label { color: #5f6368; font-size: 0.85em; display: inline-block; min-width: 90px; }
-  .error   { color: #b3261e; padding: 12px; background: #fce8e6; border-radius: 8px; margin: 14px 0; }
-  .success { color: #137333; padding: 12px; background: #e6f4ea; border-radius: 8px; margin: 14px 0; }
-  .status  { font-size: 0.8em; color: #5f6368; margin-top: 8px; }
+  .hint { font-size: 0.8em; color: #5f6368; margin-top: 8px; }
+
+  /* Not-found overlay (modal) */
+  .not-found-overlay { position: fixed; inset: 0; background: rgba(217,48,37,0.92);
+                       display: flex; align-items: center; justify-content: center;
+                       z-index: 1000; padding: 20px; }
+  .not-found-box { background: white; border-radius: 14px; padding: 28px 24px;
+                   max-width: 480px; width: 100%; text-align: center;
+                   box-shadow: 0 10px 40px rgba(0,0,0,0.3); }
+  .not-found-box h2 { margin: 0 0 8px 0; font-size: 1.6em; color: #b3261e; }
+  .not-found-box .barcode { font-family: monospace; font-size: 1.4em; margin: 12px 0;
+                            background: #fce8e6; padding: 8px 12px; border-radius: 6px;
+                            display: inline-block; }
+  .not-found-box .ack { background: #1a73e8; color: white; padding: 12px 24px;
+                        margin-top: 16px; font-size: 1.05em; }
+
+  /* Background status (pending/errors/toasts) */
+  .status-area { margin-top: 16px; }
+  .pending-item, .error-item, .toast-item {
+      padding: 8px 12px; margin: 6px 0; border-radius: 6px; font-size: 0.9em;
+      display: flex; align-items: center; gap: 8px; }
+  .pending-item { background: #e8f0fe; color: #1a4d8f; }
+  .error-item   { background: #fce8e6; color: #b3261e; }
+  .toast-item   { background: #e6f4ea; color: #137333;
+                  animation: fadeOut 2.5s forwards; }
+  .error-item button { margin-left: auto; background: transparent; color: #b3261e;
+                       padding: 2px 8px; font-size: 1.2em; font-weight: bold; }
+  @keyframes fadeOut {
+    0%, 70% { opacity: 1; transform: translateY(0); }
+    100%    { opacity: 0; transform: translateY(-6px); height: 0; padding-top: 0; padding-bottom: 0; margin: 0; }
+  }
+  .spinner { display: inline-block; width: 12px; height: 12px;
+             border: 2px solid #1a4d8f; border-top-color: transparent; border-radius: 50%;
+             animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
 
 <h1>Chemical Barcode Remover</h1>
-<div class="sub">Tap the mic, speak the barcode, confirm, delete.</div>
+<div class="sub">Type a barcode, press Enter. Review, press Enter again to delete. Repeat.</div>
 
-<button id="micBtn"    class="primary">🎤 Tap and speak</button>
-<button id="manualBtn" class="secondary">Type instead</button>
-<div id="status" class="status">Warming up…</div>
+<div class="input-bar">
+  <input id="barcodeInput" type="text" placeholder="Barcode (e.g. Ag030)" autofocus autocomplete="off" spellcheck="false" />
+  <button id="searchBtn">Search</button>
+</div>
 
-<div id="heard"  class="heard" style="display:none;"></div>
+<div class="stats">
+  <div>Deleted this session: <b id="deletedCount">0</b></div>
+  <div>In progress: <b id="pendingCount">0</b></div>
+  <div id="warmupStatus">Warming up…</div>
+</div>
+
 <div id="result"></div>
+<div id="statusArea" class="status-area"></div>
+
+<!-- Not-found modal -->
+<div id="notFoundOverlay" class="not-found-overlay" style="display:none;">
+  <div class="not-found-box">
+    <h2>⚠️ Not Found</h2>
+    <div>No row matches:</div>
+    <div class="barcode" id="notFoundBarcode"></div>
+    <div style="color:#5f6368; font-size:0.9em;">Check the container; it may not be in the inventory.</div>
+    <button id="ackNotFound" class="ack">OK (Enter)</button>
+  </div>
+</div>
 
 <script>
 // =========================================================
-// CONFIG — set before uploading.
+// CONFIG
 // =========================================================
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx3QgT-8Ba2m6NLAP7VDSzy6VzCd-Ph7j8_AST74y3Pe1lXLq_MaV7ezutlswUDTF9i5A/exec';
 const TOKEN           = 'abcdefghijklmnopqrstuvwxysabcdefghijklmnopqrstuvwxyz';
 // =========================================================
 
-let currentMatch = null;
-const micBtn   = document.getElementById('micBtn');
-const heardEl  = document.getElementById('heard');
-const resultEl = document.getElementById('result');
-const statusEl = document.getElementById('status');
+const inputEl       = document.getElementById('barcodeInput');
+const searchBtn     = document.getElementById('searchBtn');
+const resultEl      = document.getElementById('result');
+const statusAreaEl  = document.getElementById('statusArea');
+const deletedCountEl= document.getElementById('deletedCount');
+const pendingCountEl= document.getElementById('pendingCount');
+const warmupEl      = document.getElementById('warmupStatus');
+const notFoundEl    = document.getElementById('notFoundOverlay');
+const notFoundCode  = document.getElementById('notFoundBarcode');
+const ackBtn        = document.getElementById('ackNotFound');
 
-// Warm up the Apps Script on page load.
+let state = 'idle';      // 'idle' | 'searching' | 'result' | 'notfound'
+let currentMatch = null;
+let deletedCount = 0;
+let pendingId = 0;
+const pending = new Map();  // id -> {barcode, element}
+
+// --- Warmup ---
 (async function warmup() {
   const start = performance.now();
   try {
     await fetch(APPS_SCRIPT_URL, { method: 'GET' });
-    const ms = Math.round(performance.now() - start);
-    statusEl.textContent = 'Ready (warmup: ' + ms + ' ms).';
-  } catch {
-    statusEl.textContent = 'Ready.';
-  }
+    warmupEl.textContent = 'Ready (' + Math.round(performance.now() - start) + ' ms)';
+  } catch { warmupEl.textContent = 'Ready'; }
 })();
 
-const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-let recognition = null;
-
-if (SR) {
-  recognition = new SR();
-  recognition.lang = 'en-US';
-  recognition.interimResults = false;
-  recognition.maxAlternatives = 1;
-  recognition.onresult = (e) => handleHeard(e.results[0][0].transcript);
-  recognition.onerror  = (e) => { resetMic(); showError('Mic error: ' + e.error); };
-  recognition.onend    = ()  => resetMic();
-} else {
-  micBtn.disabled = true;
-  micBtn.textContent = 'Voice not supported here — use Type instead';
-}
-
-micBtn.onclick = () => {
-  if (!recognition) return;
-  clearUI();
-  micBtn.classList.remove('primary');
-  micBtn.classList.add('listening');
-  micBtn.textContent = '🔴 Listening… speak now';
-  try { recognition.start(); } catch (e) {}
-};
-
-document.getElementById('manualBtn').onclick = () => {
-  const t = prompt('Enter barcode:');
-  if (t) { clearUI(); handleHeard(t); }
-};
-
-function resetMic() {
-  micBtn.classList.remove('listening');
-  micBtn.classList.add('primary');
-  micBtn.textContent = '🎤 Tap and speak';
-}
-
-function clearUI() {
-  heardEl.style.display = 'none';
-  resultEl.innerHTML = '';
-  currentMatch = null;
-}
-
+// --- API helper ---
 async function callAPI(payload) {
   const res = await fetch(APPS_SCRIPT_URL, {
     method: 'POST',
@@ -116,68 +146,159 @@ async function callAPI(payload) {
   return res.json();
 }
 
-async function handleHeard(text) {
-  heardEl.textContent = 'Heard: "' + text + '"';
-  heardEl.style.display = 'block';
-  resultEl.innerHTML = '<p>Searching…</p>';
-  const start = performance.now();
+// --- Search ---
+async function doSearch(text) {
+  if (!text.trim()) return;
+  state = 'searching';
+  resultEl.innerHTML = '<div class="card"><i>Searching for "' + esc(text) + '"…</i></div>';
   try {
     const result = await callAPI({ action: 'find', barcode: text });
-    const ms = Math.round(performance.now() - start);
-    if (result.error)    { showError(result.error); return; }
+    if (result.error) { showError('Search failed: ' + result.error); resetToInput(); return; }
     if (result.notFound) {
-      resultEl.innerHTML = '<div class="error"><b>Not found.</b> No row matches that barcode. ' +
-        '<span style="color:#5f6368;">(' + ms + ' ms)</span></div>';
-      return;
+      showNotFound(text);
+    } else {
+      showMatch(result);
     }
-    showMatch(result, ms);
   } catch (err) {
-    showError(err.message);
+    showError('Search error: ' + err.message);
+    resetToInput();
   }
 }
 
-function showMatch(match, ms) {
+function showMatch(match) {
+  state = 'result';
   currentMatch = match;
   resultEl.innerHTML = `
     <div class="card">
-      <div class="row"><span class="label">Barcode:</span> <b>${esc(match.barcode)}</b>
-           <span style="color:#5f6368;">(matched as ${esc(match.normalized)})</span></div>
+      <div class="barcode-big">${esc(match.barcode)}</div>
       <div class="row"><span class="label">Container:</span> ${esc(match.containerName)}</div>
       <div class="row"><span class="label">CAS:</span> ${esc(match.cas)}</div>
       <div class="row"><span class="label">Size:</span> ${esc(match.size)} ${esc(match.unit)}</div>
       <div class="row"><span class="label">Location:</span> ${esc(match.location)}</div>
-      <div class="row"><span class="label">Sheet / Row:</span> ${esc(match.sheetName)} / ${match.rowNumber}</div>
-      <div class="row" style="color:#5f6368; font-size:0.85em;">Found in ${ms} ms</div>
-      <div style="margin-top:14px;">
-        <button class="danger"    onclick="confirmDelete()">Delete this row</button>
-        <button class="secondary" onclick="clearUI()">Cancel</button>
+      <div class="row"><span class="label">Sheet:</span> ${esc(match.sheetName)}</div>
+      <div class="actions">
+        <button class="danger" id="deleteBtn">Delete (Enter)</button>
+        <button class="secondary" id="cancelBtn">Cancel (Esc)</button>
       </div>
-    </div>
-  `;
+      <div class="hint">Press Enter to delete and search next. Esc to cancel.</div>
+    </div>`;
+  document.getElementById('deleteBtn').onclick = doDelete;
+  document.getElementById('cancelBtn').onclick = resetToInput;
 }
 
-async function confirmDelete() {
+function showNotFound(barcode) {
+  state = 'notfound';
+  notFoundCode.textContent = barcode;
+  notFoundEl.style.display = 'flex';
+  ackBtn.focus();
+}
+
+// --- Delete (fire and forget) ---
+function doDelete() {
   if (!currentMatch) return;
   const m = currentMatch;
-  resultEl.innerHTML = '<p>Deleting…</p>';
-  try {
-    // Delete by barcode — the server will re-find the (possibly shifted) row.
-    const result = await callAPI({ action: 'delete', barcode: m.barcode });
-    if (result.success) {
-      resultEl.innerHTML = '<div class="success"><b>Deleted.</b> ' +
-        esc(result.barcode) + ' removed from "' + esc(result.sheetName) + '".</div>';
-    } else {
-      showError(result.error || 'Delete failed');
-    }
-    currentMatch = null;
-  } catch (err) {
-    showError(err.message);
-  }
+  const id = ++pendingId;
+
+  // Add to pending UI
+  const el = document.createElement('div');
+  el.className = 'pending-item';
+  el.innerHTML = '<span class="spinner"></span> Deleting <b>' + esc(m.barcode) + '</b> from "' + esc(m.sheetName) + '"…';
+  statusAreaEl.prepend(el);
+  pending.set(id, { barcode: m.barcode, element: el });
+  updatePendingCount();
+
+  // Clear result + refocus immediately for next search
+  resetToInput();
+
+  // Run delete in background
+  callAPI({ action: 'delete', barcode: m.barcode })
+    .then(result => {
+      pending.delete(id);
+      el.remove();
+      updatePendingCount();
+      if (result.success) {
+        deletedCount++;
+        deletedCountEl.textContent = deletedCount;
+        showToast('✓ Deleted ' + result.barcode);
+      } else {
+        showError('Delete failed for ' + m.barcode + ': ' + (result.error || 'unknown'));
+      }
+    })
+    .catch(err => {
+      pending.delete(id);
+      el.remove();
+      updatePendingCount();
+      showError('Delete failed for ' + m.barcode + ': ' + err.message);
+    });
 }
 
-function showError(msg) {
-  resultEl.innerHTML = '<div class="error">' + esc(msg) + '</div>';
+function updatePendingCount() {
+  pendingCountEl.textContent = pending.size;
 }
+
+function showToast(text) {
+  const el = document.createElement('div');
+  el.className = 'toast-item';
+  el.textContent = text;
+  statusAreaEl.prepend(el);
+  setTimeout(() => el.remove(), 2600);
+}
+
+function showError(text) {
+  const el = document.createElement('div');
+  el.className = 'error-item';
+  el.innerHTML = '<span>⚠️ ' + esc(text) + '</span><button title="Dismiss">×</button>';
+  el.querySelector('button').onclick = () => el.remove();
+  statusAreaEl.prepend(el);
+}
+
+function resetToInput() {
+  state = 'idle';
+  currentMatch = null;
+  resultEl.innerHTML = '';
+  inputEl.value = '';
+  inputEl.focus();
+}
+
+function dismissNotFound() {
+  notFoundEl.style.display = 'none';
+  resetToInput();
+}
+
+// --- Keyboard handling ---
+inputEl.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    doSearch(inputEl.value);
+  }
+});
+
+searchBtn.onclick = () => doSearch(inputEl.value);
+
+// Global Enter handler: routes to delete or ack based on state
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    if (state === 'result') {
+      e.preventDefault();
+      doDelete();
+    } else if (state === 'notfound') {
+      e.preventDefault();
+      dismissNotFound();
+    }
+  } else if (e.key === 'Escape') {
+    if (state === 'result')   { e.preventDefault(); resetToInput(); }
+    if (state === 'notfound') { e.preventDefault(); dismissNotFound(); }
+  }
+});
+
+ackBtn.onclick = dismissNotFound;
+
+// Keep focus on input whenever we're idle and user clicks elsewhere accidentally
+document.addEventListener('click', (e) => {
+  if (state === 'idle' && e.target.tagName !== 'INPUT' && e.target.tagName !== 'BUTTON') {
+    inputEl.focus();
+  }
+});
 
 function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g,
